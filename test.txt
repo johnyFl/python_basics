@@ -1,0 +1,16 @@
+.
+..
+.git
+README.md
+args_kwargs.py
+closures.py
+composition.py
+decorators.py
+dunders.py
+errors.py
+generators.py
+hints_dict.py
+inheritence.py
+modules
+prop_clsmeth_stcmeth.py
+test.txt
