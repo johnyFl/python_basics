@@ -1,0 +1,157 @@
+def create_order(
+    product_id,
+    quantity,
+    repository,
+    payment_service,
+    order_repository,
+    email_service
+):
+    product = repository.get_by_id(product_id)
+
+    if product is None:
+        return False
+
+    if product["stock"] < quantity:
+        return False
+
+    total = product["price"] * quantity
+
+    payment_success = payment_service.charge(total)
+
+    if not payment_success:
+        return False
+
+    order = {
+        "product_id": product_id,
+        "quantity": quantity,
+        "total": total
+    }
+
+    order_repository.save(order)
+
+    email_service.send_confirmation(order)
+
+    return True
+
+import pytest
+from unittest.mock import Mock
+from order_service import create_order
+
+@pytest.fixture
+def mock():
+    return{
+        "mock_repository": Mock(),
+        "mock_payment_service": Mock(),
+        "mock_order_repository": Mock(),
+        "mock_email_service": Mock()
+    }
+
+def test_create_order_product_not_found(mock):
+   
+    mock["mock_repository"].get_by_id.return_value = None
+
+    result = create_order(
+        product_id=1,
+        quantity=2,
+        repository=mock["mock_repository"],
+        payment_service=mock["mock_payment_service"],
+        order_repository=mock["mock_order_repository"],
+        email_service=mock["mock_email_service"]
+    )
+
+    assert result is False
+
+    mock["mock_repository"].get_by_id.assert_called_once_with(1)
+    mock["mock_payment_service"].charge.assert_not_called()
+    mock["mock_order_repository"].save.assert_not_called()
+    mock["mock_email_service"].send_confirmation.assert_not_called()
+
+def test_create_order_insufficient_stock(mock):
+ 
+
+    mock["mock_repository"].get_by_id.return_value = {
+        "id": 1,
+        "name": "Product A",
+        "price": 10.0,
+        "stock": 1
+    }
+
+    result = create_order(
+        product_id=1,
+        quantity=2,
+        repository=mock["mock_repository"],
+        payment_service=mock["mock_payment_service"],
+        order_repository=mock["mock_order_repository"],
+        email_service=mock["mock_email_service"]
+    )
+
+    assert result is False
+
+    mock["mock_repository"].get_by_id.assert_called_once_with(1)
+    mock["mock_payment_service"].charge.assert_not_called()
+    mock["mock_order_repository"].save.assert_not_called()
+    mock["mock_email_service"].send_confirmation.assert_not_called()
+
+def test_create_order_payment_failed(mock):
+ 
+
+    mock["mock_repository"].get_by_id.return_value = {
+        "id": 1,
+        "name": "Product A",
+        "price": 10.0,
+        "stock": 5
+    }
+
+    mock["mock_payment_service"].charge.return_value = False
+
+    result = create_order(
+        product_id=1,
+        quantity=2,
+        repository=mock["mock_repository"],
+        payment_service=mock["mock_payment_service"],
+        order_repository=mock["mock_order_repository"],
+        email_service=mock["mock_email_service"]
+    )
+
+    assert result is False
+
+    mock["mock_repository"].get_by_id.assert_called_once_with(1)
+    mock["mock_payment_service"].charge.assert_called_once_with(20.0)
+    mock["mock_order_repository"].save.assert_not_called()
+    mock["mock_email_service"].send_confirmation.assert_not_called()
+
+def test_create_order_success(mock):    
+  
+
+    mock["mock_repository"].get_by_id.return_value = {
+        "id": 1,
+        "name": "Product A",
+        "price": 10.0,
+        "stock": 5
+    }
+
+    mock["mock_payment_service"].charge.return_value = True
+
+    result = create_order(
+        product_id=1,
+        quantity=2,
+        repository=mock["mock_repository"],
+        payment_service=mock["mock_payment_service"],
+        order_repository=mock["mock_order_repository"],
+        email_service=mock["mock_email_service"]
+    )
+
+    assert result is True
+
+    mock["mock_repository"].get_by_id.assert_called_once_with(1)
+    mock["mock_payment_service"].charge.assert_called_once_with(20.0)
+    mock["mock_order_repository"].save.assert_called_once_with({
+    "product_id": 1,
+    "quantity": 2,
+    "total": 20.0
+})
+    mock["mock_email_service"].send_confirmation.assert_called_once_with({
+    "product_id": 1,
+    "quantity": 2,
+    "total": 20.0
+})
